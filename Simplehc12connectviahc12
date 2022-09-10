@@ -1,0 +1,46 @@
+include <SoftwareSerial.h>
+
+//Connect Ard1 4 to Ard2 5 and Ard1 5 to Ard2 4
+// Also connect Ard1 GND to Ard2 GND
+
+SoftwareSerial SSerial(4,5); // RX, TX
+
+void setup() {
+  // Hardware Serial
+  Serial.begin(9600);
+  // nano may need this, I don't know
+  //while (!Serial) {
+  //  ; // wait for serial port to connect. Needed for native USB port only
+  // Software Serial
+  SSerial.begin(4800);
+}
+
+void loop() {
+  // display whatever comes in on the software serial [the other Arduino] to
+  // the hardware serial
+  if (SSerial.available()) {
+  Serial.write(SSerial.read());
+  }
+  // sned whatever you type in the hardware serial input bar to the other Arduino
+  if (Serial.available()) {
+  SSerial.write(Serial.read());
+  }
+}
+
+
+
+
+//just a simple echo for one instance
+/*
+Serial I/O
+*/
+// the setup function runs once when you press reset or power the board
+void setup() {
+  Serial.begin(9600);
+}
+//
+void loop() {
+  if (Serial.available()) {
+  Serial.write(Serial.read());
+  }
+}
