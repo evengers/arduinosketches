@@ -11,3 +11,13 @@ SoftwareSerial SSerial(4,5); // RX, TX
 to:
 
 SoftwareSerial SSerial(10,11); // RX, TX
+
+The syntax is SoftwareSerial mySerial(10, 11); // RX, TX note the RX first and the TX second.
+
+Mark uses constants for the pins and they are set at the beginning of the code
+const byte HC12RxdPin = 4; // "RXD" Pin on HC12
+const byte HC12TxdPin = 5; // "TXD" Pin on HC12
+const byte HC12SetPin = 6; // "SET" Pin on HC12
+
+
+
