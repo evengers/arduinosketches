@@ -21,3 +21,4 @@ const byte HC12SetPin = 6; // "SET" Pin on HC12
 
 
 
+running so that is one less variable. If you do procced with my suggestions don't forget that you have to connect TX to TX and RX to RX I know this does not sound logical but these signals are from the ATMEGA16. So the TX on that would got to the RX terminal on the ATMEG328P which is why it is marked RX.
