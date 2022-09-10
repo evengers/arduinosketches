@@ -1,0 +1,13 @@
+OK, we are getting closer.
+
+So, on the 2560 - the Mega, You can't use pins 4 and 5 for software serial. Change those two pins to 10 and 11.
+
+So, UNO pin 4 to Mega pin 11 / UNO pin 5 to Mega pin 10 / UNO GND to MEGA GND
+
+Then in the program on the Mega only change the statement:
+
+SoftwareSerial SSerial(4,5); // RX, TX
+
+to:
+
+SoftwareSerial SSerial(10,11); // RX, TX
