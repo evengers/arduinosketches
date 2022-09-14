@@ -1,0 +1,88 @@
+/*
+nodemcu boards
+
+see:  https://forum.arduino.cc/t/esp8266-version-12e-with-nrf24l01-solved/427657/22
+
+When I use two nodes of these boards, each with an NRF24L01 with a 4.7K pull-down on D8 I get rock-solid communication between the two when using the code below. And when I have the receiver print the size of the packet using the sizeof() command, its spot-on.
+
+
+*/
+
+
+
+
+
+#include <SPI.h> 
+#include <nRF24L01.h>
+#include <RF24.h> 
+
+const int pinCE = 2; 
+const int pinCSN = 15;
+byte gotByte = 0; 
+
+RF24 wirelessSPI(pinCE, pinCSN); 
+const uint64_t pAddress = 0xB00B1E5000LL;  
+
+void setup()   
+{
+  Serial.begin(9600); 
+  wirelessSPI.begin();  
+  wirelessSPI.setAutoAck(1);                 
+  wirelessSPI.enableAckPayload();              
+  wirelessSPI.setRetries(5,15);             
+  wirelessSPI.openReadingPipe(1,pAddress);      
+  wirelessSPI.startListening();              
+  wirelessSPI.printDetails();    
+}
+
+void loop()  
+{   
+    while(wirelessSPI.available()){ 
+     wirelessSPI.read( &gotByte, sizeof(gotByte) ); 
+     Serial.print("Recieved packet number: ");
+     Serial.println(gotByte);
+     Serial.print("Size: ");
+     Serial.println(sizeof(gotByte));
+    }
+   
+  delay(100);    
+}
+
+
+//transmitter code
+
+#include <SPI.h> 
+#include <nRF24L01.h> 
+#include <RF24.h> 
+
+const int pinCE = 2; 
+const int pinCSN = 15; 
+byte counter = 1;
+bool done = false; 
+RF24 wirelessSPI(pinCE, pinCSN);
+const uint64_t pAddress = 0xB00B1E5000LL;    
+
+void setup()  
+{
+  Serial.begin(9600); 
+  wirelessSPI.begin();   
+  wirelessSPI.setAutoAck(1); 
+  wirelessSPI.enableAckPayload();   
+  wirelessSPI.setRetries(5,15);              
+  wirelessSPI.openWritingPipe(pAddress);        
+  wirelessSPI.stopListening();
+  wirelessSPI.printDetails();              
+}
+
+
+void loop()  
+{
+   if (!wirelessSPI.write( &counter, 1 )){  
+       Serial.println("packet delivery failed");      
+   }
+   else { 
+       counter++; 
+   }
+    delay(750);
+}
+
