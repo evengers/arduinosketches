@@ -13,7 +13,7 @@ adapted from  https://nrf24.github.io/RF24/md_docs_arduino.html
  #define MY_SS   19  // pass MY_SS as the csn_pin parameter to the RF24 constructor
  
 // notice these pin numbers are not the same used in the library examples
-RF24 radio(2, 0); // the (ce_pin, csn_pin) connected to the radio
+RF24 radio(my_cePin,my_csnPin); // the (ce_pin, csn_pin) connected to the radio
  
 SPIClass* hspi = nullptr; // we'll instantiate this in the `setup()` function
 // by default the HSPI bus predefines the following pins
@@ -29,7 +29,7 @@ void setup() {
   hspi = new SPIClass(HSPI); // by default VSPI is used
   hspi->begin();
   // to use the custom defined pins, uncomment the following
-  // hspi->begin(MY_SCLK, MY_MISO, MY_MOSI, MY_SS)
+  hspi->begin(MY_SCLK, MY_MISO, MY_MOSI, MY_SS)
  
   if (!radio.begin(hspi)) {
     Serial.println(F("radio hardware not responding!!"));
