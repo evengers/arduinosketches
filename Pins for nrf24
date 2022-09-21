@@ -1,0 +1,33 @@
+The NRF24LO1 Trsee:
+
+https://www.electroniclinic.com/nrf24l01-with-arduino-nrf24l01-pinout-and-example-codes/
+
+ansceiver module has a total of 8 pins.
+
+Pin number 1 is the GND
+
+Pin number 2 is the VCC or 3.3V pin
+
+Pin number 3 is the CE
+
+Pin number 4 is the CSN
+
+Pin number 5 is the SCK
+
+Pin number 6 is the MOSI
+
+Pin number 7 is the MISO and
+
+Pin number 8 is the IRQ
+
+GND– Ground
+Vcc   – Supply Voltage (1.9 V – 3.6 V)
+CEpin is always input with respect to the 24L01. It is used to control data transmission
+and reception when in TX and RX modes, respectively.
+
+CSNstands for chip select not. This is the enable pin for the SPI bus, and it is active low (hence the “not” in the name). You always want to keep this pin high except when you are sending the device an SPI command or getting data on the SPI bus from the chip. When this pin goes low, the 24L01 begins listening on its SPI port for data and processes it accordingly.
+
+SCKis the serial clock for the SPI bus. When you configure your SPI bus, SCK should stay low normally (rising edges are active), and the clock samples data in the middle of data bits.
+MOSIstands for “master out, slave in,” and from both the microcontroller’s and the 24L01’s perspectives, the master is the microcontroller and the slave is the 24L01. This is because the 24L01 never sends data without first being requested by the microcontroller. Essentially, this pin is the side of the bus on which the master (the microcontroller) sends data to the slave (the 24L01). It is also connected to the MOSI pin on your microcontroller’s SPI interface.
+MISOpin is like the MOSI pin, but backwards. This pin is the side of the bus on which the slave (the 24L01) sends data to the master (the microcontroller).
+IRQis the interrupt pin and is active-low. There are three internal interrupts that can cause this pin to go low when they are active.
