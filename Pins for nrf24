@@ -1,3 +1,12 @@
+
+When changing the settings of the nRF24L01, it is necessary to power cycle the nRF24L01 before executing.
+Because nRF24L01 remembers the previous setting.
+nRF24L01 does not have Software Reset function.
+
+
+
+
+
 The NRF24LO1 Trsee:
 
 https://www.electroniclinic.com/nrf24l01-with-arduino-nrf24l01-pinout-and-example-codes/
