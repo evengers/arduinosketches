@@ -35,6 +35,8 @@ char msg[MSG_BUFFER_SIZE];
 int value = 0;
 
 int thisIP; //use this for topics to identify sender set at wifi connect
+char theOutTopic[12];
+char theInTopic[12]; //both will be concattonated with the last 3 of the ipaddress to uniquely identify traffic
 
 void setup_wifi() {
 
@@ -57,7 +59,7 @@ void setup_wifi() {
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
-  thisIP = WiFi.localIP()[3];
+  thisIP = WiFi.localIP()[3]; // just need the last 3 digits ofthe ip to uniquely identify this node
   
   Serial.println(thisIP);
 }
@@ -93,13 +95,17 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
       // Once connected, publish an announcement...
-      String theTopicStr = "ok/" + String(thisIP);
-      char theTopic[12];
-      theTopicStr.toCharArray(theTopic,12);
-      client.publish(theTopic, "hello world");
+      String theOutTopicStr = "ok/" + String(thisIP);
+      Serial.println("will be publishing with this topic ..." + theOutputTopicStr);
+      theOutTopicStr.toCharArray(theOutTopic,12);
+      client.publish(theOutTopic, "hello world");
       
       // ... and resubscribe
-      client.subscribe("cmd/"+thisIP);
+      //client.subscribe("cmd/"+thisIP);
+      String theInTopicStr = "cmd/" + String(thisIP);
+      Serial.println("subscribing to  ... " + theInTopicStr);
+      theInTopicStr.toCharArray(theInTopic,12);
+      client.subscribe(theInTopic);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -135,14 +141,13 @@ void loop() {
     gotOne = true;
   }
   if (gotOne) {
-    
      
       String theTopicStr = "ok/" + String(thisIP);
-      char theTopic[12];
+     
       char theMsg[12];
-      theTopicStr.toCharArray(theTopic,12);
+      theTopicStr.toCharArray(theOutTopic,12);
       gotStr.toCharArray(theMsg,12);
-      client.publish(theTopic, theMsg);
+      client.publish(theOutTopic, theMsg);
   }
 
   
@@ -153,9 +158,9 @@ void loop() {
   if (now - lastMsg > 2000) {
     lastMsg = now;
     ++value;
-    snprintf (msg, MSG_BUFFER_SIZE, "hello world #%ld", value);
+    snprintf (msg, MSG_BUFFER_SIZE, "heartbeat #%ld", value);
     Serial.print("Publish message: ");
     Serial.println(msg);
-    client.publish("outTopic", msg);
+    client.publish(theOutTopic, msg);
   }
 }
