@@ -1,3 +1,24 @@
+/*
+
+e.g. in order to send an int you’d just write
+
+  int i;
+  Wire.write((const uint8_t*)&i, sizeof(i));
+And since the TwoWire class inherits from Stream you can also use this to read data back
+
+  Wire.readBytes((char*)&i, sizeof(i));
+
+
+
+
+
+
+*/
+
+
+
+
+
 //  the esp
 #include <Wire.h>
 #define I2CAddressESPWifi 8
