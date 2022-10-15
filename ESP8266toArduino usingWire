@@ -11,9 +11,39 @@ And since the TwoWire class inherits from Stream you can also use this to read d
 
 
 
-
+following from stackoverflow example is for the arduino     basically echoes back to master
 
 */
+
+#include <Wire.h>
+
+void setup()
+{
+  Wire.begin(4); 
+  Wire.onReceive(receiveEvent); 
+  Wire.onRequest(requestEvent);
+}
+
+String data = "";
+
+void loop()
+{
+
+}
+
+void receiveEvent(int howMany)
+{
+  data = "";
+  while( Wire.available()){
+    data += (char)Wire.read();
+  }
+}
+
+void requestEvent()
+{
+    Wire.write(data.c_str());  //pulled from srduino stackoverflow
+}
+
 
 
 
