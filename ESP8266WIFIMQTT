@@ -21,6 +21,13 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
+//ESP as MASTER
+#include <Wire.h>
+#define I2CAddressESPWifi 8
+int x=32;
+
+
+
 // Update these with values suitable for your network.
 
 const char* ssid = "ZuhauseGizmos";
@@ -30,7 +37,7 @@ const char* mqtt_server = "192.168.2.222";
 WiFiClient espClient;
 PubSubClient client(espClient);
 unsigned long lastMsg = 0;
-#define MSG_BUFFER_SIZE	(50)
+#define MSG_BUFFER_SIZE  (50)
 char msg[MSG_BUFFER_SIZE];
 int value = 0;
 
@@ -96,7 +103,7 @@ void reconnect() {
       Serial.println("connected");
       // Once connected, publish an announcement...
       String theOutTopicStr = "ok/" + String(thisIP);
-      Serial.println("will be publishing with this topic ..." + theOutputTopicStr);
+      Serial.println("will be publishing with this topic ..." + theOutTopicStr);
       theOutTopicStr.toCharArray(theOutTopic,12);
       client.publish(theOutTopic, "hello world");
       
@@ -122,6 +129,41 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+
+  Wire.begin(0,2);//Change to Wire.begin() for non ESP.
+}
+
+
+void wireComm() {
+
+  Wire.beginTransmission(I2CAddressESPWifi);
+Wire.write(x);
+Wire.endTransmission();
+x++;
+delay(1);//Wait for Slave to calculate response.
+Wire.requestFrom(I2CAddressESPWifi,10);
+Serial.print("Request Return:[");
+
+char arrayBuf[30];
+int bufCtr = 0;
+while (Wire.available())
+{
+delay(1);
+char c = Wire.read();
+Serial.print(c);
+
+arrayBuf[bufCtr] = c;
+bufCtr++;
+}
+Serial.println("]");
+delay(500);
+
+arrayBuf[bufCtr] = '/0';
+if(strlen(arrayBuf)>1)
+  {
+   client.publish(theOutTopic, arrayBuf);
+  }
+
 }
 
 void loop() {
@@ -129,6 +171,9 @@ void loop() {
   if (!client.connected()) {
     reconnect();
   }
+
+
+wireComm();
 
 
 //get strings from arduino uno or tivac
