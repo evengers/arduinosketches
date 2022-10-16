@@ -1,0 +1,105 @@
+//https://www.circuitbasics.com/how-to-send-an-email-with-esp8266-and-ifttt/
+
+//for the uno
+#include "SerialTransfer.h"
+#include <SoftwareSerial.h>
+#define ThermistorPin 0
+
+int Vo;
+float R1 = 1000;
+float logR2, R2, T;
+float c1 = 1.009249522e-03, c2 = 2.378405444e-04, c3 = 2.019202697e-07;
+
+SoftwareSerial mySerial(2, 3); // RX, TX
+SerialTransfer myTransfer;
+
+void setup() {
+  Serial.begin(115200);
+  mySerial.begin(9600);
+  myTransfer.begin(mySerial);
+}
+
+void loop() {
+
+  Vo = analogRead(ThermistorPin);
+  R2 = R1*(1023.0 / (float)Vo - 1.0);
+  logR2 = log(R2);
+  T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
+  T = T - 273.15;
+  
+  //Serial.print("Temperature: "); 
+  Serial.println(T);
+  //Serial.println(" C"); 
+    
+    myTransfer.txObj(T, sizeof(T));
+    myTransfer.sendData(sizeof(T));
+    delay(5000);
+}
+
+
+
+//for the esp 8266
+#include <ESP8266WiFi.h>
+#include "SerialTransfer.h"
+
+SerialTransfer myTransfer;
+
+const char* ssid     = "WiFi Name";
+const char* password = "WiFi password";
+
+const char* resource = "https://maker.ifttt.com/trigger/ESP_Thermistor/with/key/bmsvPMsnwDjS4j5p2UsxGr";
+const char* server = "maker.ifttt.com";
+
+void setup() {
+  Serial.begin(115200); 
+  myTransfer.begin(Serial);
+  WiFi.begin(ssid, password);            
+  Serial.print("Connecting to ");
+  Serial.print(ssid); Serial.println(" ...");
+
+  int i = 0;
+  while (WiFi.status() != WL_CONNECTED) { 
+    delay(1000);
+    Serial.print(++i); Serial.print(' ');
+  }
+  Serial.println('\n');
+  Serial.println("Connection established!");  
+  Serial.print("IP address:\t");
+  Serial.println(WiFi.localIP()); 
+}
+
+void loop() 
+{
+  if(myTransfer.available())
+  {
+    float T;
+    myTransfer.rxObj(T, sizeof(T));
+  
+    if (T>30)
+    {
+      WiFiClient client;
+
+      client.print(String("GET ") + resource + 
+                      " HTTP/1.1\r\n" +
+                      "Host: " + server + "\r\n" + 
+                      "Connection: close\r\n\r\n");
+                  
+      int timeout = 5 * 10; // 5 seconds             
+      while(!!!client.available() && (timeout-- > 0))
+      {
+        delay(100);
+      }
+      while(client.available())
+      {
+        Serial.write(client.read());
+      }
+      client.stop();
+    }
+    else 
+    {
+      return;
+    }
+  }  
+}
+
+//yippee
