@@ -78,35 +78,21 @@ void setup_wifi() {
   
 }
 
-void Xcallback(char* topic, byte* payload, unsigned int length) {
-  
-  Serial.write(payload, length);
-  
-}
 void callback(char* topic, byte* payload, unsigned int length) {
-  flagUNOtx  = true; 
-
-  //toUNObuff= payload;         //not sure about this  toUNObuff[30]  incompatible type
   
-  //do not need rest of this
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
+  snprintf (msg, MSG_BUFFER_SIZE, "%sheartbeat #%ld%s", startMarker,payload,endMarker);
+    Serial.println(msg); //send it to the UNO
+    
+ /* next few lines just here for checking syntax ideas
+ if ((char)payload[0] == '1') 
+ for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
-  Serial.println();
-
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  }
-
+  */
+  
 }
+
+   
 
 void reconnect() {
   // Loop until we're reconnected
@@ -151,11 +137,6 @@ void setup() {
   
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-
- 
-
-  
- 
   
 }
 
@@ -188,9 +169,6 @@ void loop() {
 
 
   
-
-
-  
   unsigned long now = millis();
   if (now - lastMsg > 2000) {
     lastMsg = now;
@@ -198,11 +176,7 @@ void loop() {
     snprintf (msg, MSG_BUFFER_SIZE, "%sheartbeat #%ld%s", startMarker,value,endMarker);
     Serial.println(msg);
     client.publish(theOutTopic, msg);
-    /*this fires
-     dtostrf(testStruct.y,3,2,outStr);
-    client.publish(theOutTopic,outStr);
-    outStr[0]='/0';
-    */
+    
   }
 
   
