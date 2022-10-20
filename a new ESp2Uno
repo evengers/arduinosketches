@@ -175,6 +175,8 @@ void loop() {
  
 
 // send what came from UNO over mqtt AS STRING 
+ recvWithStartEndMarkers(); 
+    if (newData)  {   processCommand();  }    
 
 
   
