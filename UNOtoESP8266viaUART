@@ -34,8 +34,8 @@ char outStr[7]={'/0'};  //buffer for outstr from wire to mqtt
 
 
 // Variables used for incoming data
-const byte maxDataLength = 20;
-char receivedChars[21] ;
+const byte maxDataLength =MSG_BUFFER_SIZE ;
+char receivedChars[MSG_BUFFER_SIZE+1] ;
 boolean newData = false;
  char startMarker = '<';
  char endMarker = '>';
@@ -244,6 +244,13 @@ void processCommand()
 {
       client.publish(theOutTopic, "testing ... cmd process");
 
+ String s = String(receivedChars);
+ if (s.length() < 2) {
+    client.publish(theOutTopic, "too short");
+}else{
+     s = "<" + s + ">";
+     client.publish(theOutTopic, s);
+}
  
  // char rcstr[21];
  // strcpy(rcstr,receivedChars);
