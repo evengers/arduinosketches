@@ -79,8 +79,17 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
+
+
+char message[length + 1];
+
+  // convert the payload from a byte array to a char array
+  memcpy(message, payload, length);
+
+  // add NULL terminator to message, making it a correct c-string
+  message[length] = '\0'; // maybe alternative just cocat the start and end and seiarl.println message??
   
-  snprintf (msg, MSG_BUFFER_SIZE, "%sheartbeat #%ld%s", startMarker,payload,endMarker);
+  snprintf (msg, MSG_BUFFER_SIZE, "%sCMD: %s%s", startMarker,message,endMarker);
     Serial.println(msg); //send it to the UNO
     
  /* next few lines just here for checking syntax ideas
@@ -111,7 +120,7 @@ void reconnect() {
       client.publish(theOutTopic, "hello world");
       
       // ... and resubscribe
-      //client.subscribe("cmd/"+thisIP);
+      client.subscribe("cmd/"+thisIP);
       String theInTopicStr = "cmd/" + String(thisIP);
       Serial.println("subscribing to  ... " + theInTopicStr);
       theInTopicStr.toCharArray(theInTopic,12);
@@ -289,6 +298,12 @@ void recvWithStartEndMarkers()
 //THE ESP01 8266 generic module side
 
 
+
+
+
+
+
+
 // and the UNO side
 
 #include <AltSoftSerial.h>
@@ -320,7 +335,8 @@ boolean DEBUG = true;
 
 // Variables used for incoming data
 const byte maxDataLength = 20;
-char receivedChars[21] ;
+char receivedChars[21] ; //buffer for data in from ESP
+char lastreceivedChars[21] ; //keep the last char receivedChars[21] in case aa ack needed back to ESP
 boolean newData = false;
 
 //const byte TEMP_PIN = A0;
@@ -432,6 +448,17 @@ void processCommand()
      }
      */
      
+     //if ack asked for send one for last message
+  if (strcmp ("ack",receivedChars) == 0) {
+    snprintf (msg, MSG_BUFFER_SIZE, "%sACK: #%s%s", startMarker,lastreceivedChars,endMarker);
+    Serial.println(msg);
+  }
+     
+       //strcpy(incomingMessage, message); //copy c strings
+ // memcpy(incomingMessage, message, length); //when NULL terminator not known?
+     
+     
+    strcpy( lastreceivedChars, receivedChars); // just in case we need to send an ack
      newData = false;
      receivedChars[0]='\0'; 
    
