@@ -318,14 +318,8 @@ void recvWithStartEndMarkers()
 //
 // Board          Transmit  Receive   PWM Unusable
 // -----          --------  -------   ------------
-// Teensy 3.0 & 3.1  21        20         22
-// Teensy 2.0         9        10       (none)
-// Teensy++ 2.0      25         4       26, 27
 // Arduino Uno        9         8         10
-// Arduino Leonardo   5        13       (none)
-// Arduino Mega      46        48       44, 45
-// Wiring-S           5         6          4
-// Sanguino          13        14         12
+
 
 AltSoftSerial altSerial;
 
@@ -398,18 +392,6 @@ void loop() {
 
 /*
 ****************************************
-* Function getTemp
-* read a analogue pin and converts the value to a temperature
-* based on the adafruit thermistor guide https://learn.adafruit.com/thermistor/testing-a-thermistor 
-* 
-* passed:
-*  
-* global: 
-*
-* Returns:
-*        float temp  
-* Sets:
-*
 */
 
 
@@ -438,7 +420,7 @@ void loop() {
 void processCommand()
 {
 
-     Serial.println(receivedChars);
+    // Serial.println(receivedChars);
      
      /*example of processing command
   
@@ -451,10 +433,10 @@ void processCommand()
      */
      
      //if ack asked for send one for last message
-  if (strcmp ("ack",receivedChars) == 0) {
+ // if (strcmp ("ack",receivedChars) == 0) {
     snprintf (msg, MSG_BUFFER_SIZE, "%sACK: #%s%s", startMarker,lastreceivedChars,endMarker);
-    Serial.println(msg);
-  }
+    Serial.println(msg); // send back an acknowledgement
+//  }
      
        //strcpy(incomingMessage, message); //copy c strings
  // memcpy(incomingMessage, message, length); //when NULL terminator not known?
