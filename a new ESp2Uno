@@ -138,7 +138,7 @@ void reconnect() {
 
 void setup() {
  // pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
-  Serial.begin(9600);
+  Serial.begin(19200);
   delay(500);
   
   setup_wifi();
