@@ -1,68 +1,3 @@
-//THE UNO side
-
-#include "SerialTransfer.h"
-#include <SoftwareSerial.h>
-
-SoftwareSerial mySerial(8, 9); // RX, TX
-
-
-
-
-SerialTransfer myTransfer;
-
-struct STRUCT {
-  char z;
-  float y;
-} testStruct;
-
-//passing data via structs that must match the structs on uno/tivac side
-struct STRUCT {
-  char z;
-  float y;
-} fromESPStruct, toESPStruct;  //messages in from UNO  and out to  Uno  ... in this case same structure (also needs to be on UNO side
-
-
-
-void setup()
-{
-  Serial.begin(57600);
-  mySerial.begin(57600);
-  myTransfer.begin(mySerial);
-
-  testStruct.z = '$';
-  testStruct.y = 4.5;
-}
-
-
-void loop()
-{
-  toESPStruct.y = toESPStruct.y + toESPStruct.y;
-  myTransfer.txObj(outStruct,sizeof(outStruct));
-  myTransfer.sendData(sizeof(outStruct));
-  delay(500);
-    String  gotStr= "";
-    bool gotOne = false;
-
- if(mySerial.available())
-  {
-     myTransfer.rxObj(fromESPStruct);   //receive the message from ESP
-    Serial.print(testStruct.z);
-    Serial.println(testStruct.y);
-  }
-  /*
-  
-  if (mySerial.available()) {
-    gotStr= mySerial.readString();
-    gotOne = true;
-  }
-  if (gotOne) {
-    Serial.println("Received: " + gotStr);
-  }
-  */
-}
-
-
-
 //for esp8266 generic module
 
 /*
@@ -84,49 +19,29 @@ void loop()
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-#include "SerialTransfer.h"
-SerialTransfer myTransfer;
 
-#define BAUD_RATE 57600
-#include <SoftwareSerial.h>
-SoftwareSerial softSerial;
-
-//passing data via structs that must match the structs on uno/tivac side
-struct STRUCT {
-  char z;
-  float y;
-} fromUnoStruct, toUnoStruct;  //messages in from UNO  and out to  Uno  ... in this case same structure (also needs to be on UNO side
 
 
 bool flagUNOtx  = false;  //used to signal receipt of mqtt message that needs to be conveyed to UNO
 char toUNObuff[30];
 
-char ICbuff[40];
-bool flagICrx = false;
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgIn[MSG_BUFFER_SIZE]={'/0'};
+bool readyToRelayToUno = false;
 char outStr[7]={'/0'};  //buffer for outstr from wire to mqtt
 
 
 
-/////////////////////////////////////////////////////////////////// Callbacks
-void hi()
-{
-  myTransfer.rxObj(testStruct);
-  Serial.print(testStruct.z);
-  Serial.println(testStruct.y);
-  dtostrf(testStruct.y,3,2,outStr); //convert float to out buffer
-  flagICrx = true; //will truigger send in main loop
-}
-// supplied as a reference - persistent allocation required
-const functionPtr callbackArr[] = { hi };
-///////////////////////////////////////////////////////////////////
+// Variables used for incoming data
+const byte maxDataLength = 20;
+char receivedChars[21] ;
+boolean newData = false;
+ char startMarker = '<';
+ char endMarker = '>';
+String out ="";
 
 
-
-
-//ESP as MASTER
-#include <Wire.h>
-#define I2CAddressESPWifi 8
-int x=32; //buffer size max??
 
 
 
@@ -175,29 +90,43 @@ void setup_wifi() {
   
 }
 
+
 void callback(char* topic, byte* payload, unsigned int length) {
-  flagUNOtx  = true; 
-  toUNObuff= payload;         //not sure about this  toUNObuff[30]
-  
-  //do not need rest of this
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
+
+char message[length + 2]; //1 for the string terminator and 2 for start and stop chars
+
+  // convert the payload from a byte array to a char array
+  memcpy(message, payload, length);
+
+  // add NULL terminator to message, making it a correct c-string
+  message[length - 1] = '>'; //replkace the newline .. will this truncat some messages
+  message[length] = '\0'; // maybe alternative just cocat the start and end and seiarl.println message??
+
+  char str[length + 7];
+  str[0] = 0; 
+  strcat (str,"<CMD:");
+  strcat (str, message);
+  str[length + 7] = '\0';
+ 
+   ///send it along to the UNO
+ // Serial.println(str);
+  Serial.print(str);  //without the lin feed
+ 
+    
+   //readyToRelayToUno = true;
+   
+
+    
+ /* next few lines just here for checking syntax ideas
+ if ((char)payload[0] == '1') 
+ for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
-  Serial.println();
-
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  }
-
+  */
+  
 }
+
+   
 
 void reconnect() {
   // Loop until we're reconnected
@@ -216,7 +145,7 @@ void reconnect() {
       client.publish(theOutTopic, "hello world");
       
       // ... and resubscribe
-      //client.subscribe("cmd/"+thisIP);
+      client.subscribe("cmd/"+thisIP);
       String theInTopicStr = "cmd/" + String(thisIP);
       Serial.println("subscribing to  ... " + theInTopicStr);
       theInTopicStr.toCharArray(theInTopic,12);
@@ -233,146 +162,333 @@ void reconnect() {
 
 
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
-  Serial.begin(115200);
+ // pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  Serial.begin(19200);
+  delay(500);
+  
   setup_wifi();
+  delay(5000);
+  
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-
- // Wire.begin(0,2);//Change to Wire.begin() for non ESP.
-
-
-// see here for softwareserial
-//https://docs.arduino.cc/learn/built-in-libraries/software-serial
-//On Arduino or Genuino 101 boards the current maximum RX speed is 57600bps. AND  RX doesn't work on digital pin 13.
-  softSerial.begin(BAUD_RATE); //other paramters here to match UNO side?? 
-  myTransfer.begin(softSerial);
-  
- // myTransfer.begin(Serial);
-  
-   ///////////////////////////////////////////////////////////////// Config Parameters
-  configST myConfig;
-  myConfig.debug        = true;
-  myConfig.callbacks    = callbackArr;
-  myConfig.callbacksLen = sizeof(callbackArr) / sizeof(functionPtr);
-  /////////////////////////////////////////////////////////////////
-  
-//  myTransfer.begin(Wire, myConfig);
   
 }
 
 
-
-void wireComm() {
-
-  Wire.beginTransmission(I2CAddressESPWifi);
-Wire.write(x);
-Wire.endTransmission();
-x++;
-delay(1);//Wait for Slave to calculate response.
-Wire.requestFrom(I2CAddressESPWifi,10);
-Serial.print("Request Return:[");
-
-
-int bufCtr = 0;
-while (Wire.available())
-{
-delay(1);
-char c = Wire.read();
-Serial.print(c);
-
-ICbuff[bufCtr] = Wire.read();
-bufCtr++;
-}
-Serial.println("]");
-delay(500);
-ICbuff[bufCtr] = '/0'; //assume it is a string and terminate it
-flagICrx = true; //will truigger send in main loop
-
-
-}
 
 
 
 void loop() {
-
+ delay(10); ///needed??
+ 
   if (!client.connected()) {
     reconnect();
   }
 
- client.loop();
- 
+ client.loop(); //mqtt
+
+/*
+if( readyToRelayToUno){
+  Serial.println(mqttMsgIn); //send it to the UNO   ...buffer filled in mqtt callback
+  mqttMsgIn[0]='\0'; //just make sure it is clear
+  readyToRelayToUno = false; //ready for next one 
+}
+*/
+
 
 // send what came from UNO over mqtt AS STRING 
-  if(myTransfer.available())
-  {
-    myTransfer.rxObj(fromUnoStruct);
-   // Serial.print(testStruct.z);
-   // Serial.println(testStruct.y);
-     dtostrf(fromUnoStruct.y,3,2,outStr);
-    client.publish(theOutTopic,outStr);
-    outStr[0]='/0';
-  }
-  
-//wireComm();
-
-fromUnoStruct, toUnoStruct
+    recvWithStartEndMarkers(); 
+    if (newData)  {   processCommand();  }    
 
 
-//send what is reeived from from MQTT to UNO  
-if(flagUNOtx)
-{
-    
-     toUnoStruct.y = 99.99;  //just testing  ... replace with string conversion
-     // ... need to translate it to non string as defined by struct    i.e. from toUNObuff that is filled by mqtt payload
-     myTransfer.txObj(toUnoStruct,sizeof(toUnoStruct));
-     myTransfer.sendData(sizeof(toUnoStruct));
-     flagUNOtx  = false;
-     
-     //
-     toUNObuff[0] = '/0'; //clear the buffer??
-    
-  }
-
-
-/*no longer necessary??
-//get strings from arduino uno or tivac
-   String  gotStr= "";
-    bool gotOne = false;
-  
-  if (Serial.available() > 0) {
-    gotStr= Serial.readString();
-    gotStr.trim(); //remove linefeed
-    gotOne = true;
-  }
-  if (gotOne) {
-     
-      String theTopicStr = "ok/" + String(thisIP);
-     
-      char theMsg[12];
-      theTopicStr.toCharArray(theOutTopic,12);
-      gotStr.toCharArray(theMsg,12);
-      client.publish(theOutTopic, theMsg);
-  }
-
-  */
-  
- 
-
+  /*
   unsigned long now = millis();
   if (now - lastMsg > 2000) {
     lastMsg = now;
     ++value;
-    snprintf (msg, MSG_BUFFER_SIZE, "heartbeat #%ld", value);
-    Serial.print("Publish message: ");
+    snprintf (msg, MSG_BUFFER_SIZE, "%sheartbeat #%ld%s", startMarker,value,endMarker);
     Serial.println(msg);
     client.publish(theOutTopic, msg);
-    /*this fires
-     dtostrf(testStruct.y,3,2,outStr);
-    client.publish(theOutTopic,outStr);
-    outStr[0]='/0';
-    */
-  }
+   }
+*/
+  
 }
 
+
+
+
+
+
+/*
+****************************************
+* Function processCommand
+* parses data commands contained in receivedChars[]
+* receivedChars[] has not been checked for errors
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       receivedChars[]
+*       newData
+*
+*/
+
+
+void processCommand()
+{
+      client.publish(theOutTopic, "testing ... cmd process");
+
+ 
+ // char rcstr[21];
+ // strcpy(rcstr,receivedChars);
+  //str[0] = 0; 
+ // strcat (str,receivedChars);
+ // str[howLong] = '\0';
+    //  String outString = "echo: " + receivedChars +"";
+      
+//      client.publish(theOutTopic, rcstr);
+     //pass it overmqtt
+    // snprintf (msg, MSG_BUFFER_SIZE, "%sMSG:%s%s", startMarker,receivedChars,endMarker);
+  //   client.publish(theOutTopic, msg);
+     
+     /*example of processing command
+  
+     if (strcmp ("sendTemp",receivedChars) == 0) 
+     { 
+         float temp = getTemp();
+         altSerial.print("<");  altSerial.print( temp ); altSerial.print(">");
+         if (DEBUG) { Serial.print("Temp is ");   Serial.print(temp);  Serial.println("");   }
+     }
+     */
+     
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+       
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+/*
+****************************************
+* Function recvWithStartEndMarkers
+* reads serial data and returns the content between a start marker and an end marker.
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       newData
+*       receivedChars
+*
+*/
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+     char startMarker = '<';
+     char endMarker = '>';
+     char rc;
+ 
+     if (Serial.available() > 0) 
+     {
+          rc = Serial.read();
+          //Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+               if (rc != endMarker) 
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               {
+                     receivedChars[ndx] = '\0'; // terminate the string
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
 //THE ESP01 8266 generic module side
+
+
+
+
+
+// and the UNO side
+
+#include <AltSoftSerial.h>
+
+//slave for arduino tpo process data
+//excellent example here
+//http://www.martyncurrey.com/arduino-to-arduino-by-bluetooth/
+
+// AltSoftSerial always uses these pins:
+//
+// Board          Transmit  Receive   PWM Unusable
+// -----          --------  -------   ------------
+// Arduino Uno        9         8         10
+
+
+AltSoftSerial altSerial;
+
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgOut[MSG_BUFFER_SIZE];
+
+
+// Set DEBUG to true to output debug information to the serial monitor
+boolean DEBUG = true;
+ 
+
+// Variables used for incoming data
+const byte maxDataLength = 20;
+char receivedChars[21] ; //buffer for data in from ESP
+char lastreceivedChars[21] ; //keep the last char receivedChars[21] in case aa ack needed back to ESP
+boolean newData = false;
+
+ char startMarker = '<';
+ char endMarker = '>';
+
+//const byte TEMP_PIN = A0;
+
+void setup()  
+{
+    if (DEBUG)
+    {
+        // open serial communication for debugging
+        Serial.begin(19200);
+        while (!Serial) ; // wait for Arduino Serial Monitor to open
+        Serial.println(__FILE__);
+        Serial.println(" ");
+    }
+
+    //  open a software serial connection 
+    altSerial.begin(19200); 
+    if (DEBUG)  {   Serial.println(F("AltSoftSerial started at 19200"));     }
+    newData = false;
+ 
+} // void setup()
+ 
+ 
+
+ int actr = 0;
+ 
+void loop()  
+{
+  
+  
+    recvWithStartEndMarkers(); 
+    if (newData)  {   processCommand();  }  
+
+
+}
+    
+
+
+
+
+
+/*
+****************************************
+* Function processCommand
+* parses data commands contained in receivedChars[]
+* receivedChars[] has not been checked for errors
+
+*
+*/
+
+
+void processCommand()
+{
+
+   //add atarter and end char 
+    snprintf (mqttMsgOut, MSG_BUFFER_SIZE, "<ACK:%s>", receivedChars);
+    altSerial.println(mqttMsgOut); // send back an acknowledgement
+     
+       //strcpy(incomingMessage, message); //copy c strings
+ // memcpy(incomingMessage, message, length); //when NULL terminator not known?
+       
+    strcpy( lastreceivedChars, receivedChars); // just in case we need to send an ack
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+       
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+/*
+****************************************
+* Function recvWithStartEndMarkers
+* reads serial data and returns the content between a start marker and an end marker.
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       newData
+*       receivedChars
+*
+*/
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+    // char startMarker = '<';
+    // char endMarker = '>';
+     char rc;
+ 
+     if (altSerial.available() > 0) 
+     {
+          rc = altSerial.read();
+          Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+               if (rc != endMarker) 
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               {
+                     receivedChars[ndx] = '\0'; // terminate the string
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
+
+
