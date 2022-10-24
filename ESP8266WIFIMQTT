@@ -1,14 +1,12 @@
+//for esp8266 generic module
+
 /*
- Basic ESP8266 MQTT example
- This sketch demonstrates the capabilities of the pubsub library in combination
- with the ESP8266 board/library.
- It connects to an MQTT server then:
-  - publishes "hello world" to the topic "outTopic" every two seconds
-  - subscribes to the topic "inTopic", printing out any messages
-    it receives. NB - it assumes the received payloads are strings not binary
-  - If the first character of the topic "inTopic" is an 1, switch ON the ESP Led,
-    else switch it off
- It will reconnect to the server if the connection is lost using a blocking
+
+1) Basic ESP8266 MQTT example  with WIFI   conveys uno's  messages to/from network via MQTT
+2) Messages passed between UNo (or TIVAC) and EP-01 module using UART/Serial (could be I2C instead)
+                     - MQTT will need strings need conversion the messages from UNO that are transferred as bytes (in structs) with SerialTransfer
+
+ 3) MQTT will reconnect to the server if the connection is lost using a blocking
  reconnect function. See the 'mqtt_reconnect_nonblocking' example for how to
  achieve the same result without blocking the main loop.
  To install the ESP8266 board, (using Arduino 1.6.4+):
@@ -21,10 +19,29 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
-//ESP as MASTER
-#include <Wire.h>
-#define I2CAddressESPWifi 8
-int x=32;
+
+
+
+bool flagUNOtx  = false;  //used to signal receipt of mqtt message that needs to be conveyed to UNO
+char toUNObuff[30];
+
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgIn[MSG_BUFFER_SIZE]={'/0'};
+bool readyToRelayToUno = false;
+char outStr[7]={'/0'};  //buffer for outstr from wire to mqtt
+
+
+
+// Variables used for incoming data
+const byte maxDataLength =MSG_BUFFER_SIZE ;
+char receivedChars[MSG_BUFFER_SIZE+1] ;
+boolean newData = false;
+ char startMarker = '<';
+ char endMarker = '>';
+String out ="";
+
+
 
 
 
@@ -69,27 +86,48 @@ void setup_wifi() {
   thisIP = WiFi.localIP()[3]; // just need the last 3 digits ofthe ip to uniquely identify this node
   
   Serial.println(thisIP);
+
+  
 }
+
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
+
+char message[length + 2]; //1 for the string terminator and 2 for start and stop chars
+
+  // convert the payload from a byte array to a char array
+  memcpy(message, payload, length);
+
+  // add NULL terminator to message, making it a correct c-string
+  message[length - 1] = '>'; //replkace the newline .. will this truncat some messages
+  message[length] = '\0'; // maybe alternative just cocat the start and end and seiarl.println message??
+
+  char str[length + 7];
+  str[0] = 0; 
+ // strcat (str,"<CMD:");
+  strcat (str,"<");  //what else would it be? forget about the CMD?
+  strcat (str, message);
+  str[length + 7] = '\0';
+ 
+   ///send it along to the UNO
+ // Serial.println(str);
+  Serial.print(str);  //without the lin feed
+ 
+    
+   //readyToRelayToUno = true;
+   
+
+    
+ /* next few lines just here for checking syntax ideas
+ if ((char)payload[0] == '1') 
+ for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
-  Serial.println();
-
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  }
-
+  */
+  
 }
+
+   
 
 void reconnect() {
   // Loop until we're reconnected
@@ -108,7 +146,7 @@ void reconnect() {
       client.publish(theOutTopic, "hello world");
       
       // ... and resubscribe
-      //client.subscribe("cmd/"+thisIP);
+      client.subscribe("cmd/"+thisIP);
       String theInTopicStr = "cmd/" + String(thisIP);
       Serial.println("subscribing to  ... " + theInTopicStr);
       theInTopicStr.toCharArray(theInTopic,12);
@@ -123,89 +161,188 @@ void reconnect() {
   }
 }
 
+
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
-  Serial.begin(115200);
+ // pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  Serial.begin(38400);
+  delay(500);
+  
   setup_wifi();
+  delay(5000);
+  
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-
-  Wire.begin(0,2);//Change to Wire.begin() for non ESP.
+  
 }
 
 
-void wireComm() {
 
-  Wire.beginTransmission(I2CAddressESPWifi);
-Wire.write(x);
-Wire.endTransmission();
-x++;
-delay(1);//Wait for Slave to calculate response.
-Wire.requestFrom(I2CAddressESPWifi,10);
-Serial.print("Request Return:[");
 
-char arrayBuf[30];
-int bufCtr = 0;
-while (Wire.available())
-{
-delay(1);
-char c = Wire.read();
-Serial.print(c);
-
-arrayBuf[bufCtr] = c;
-bufCtr++;
-}
-Serial.println("]");
-delay(500);
-
-arrayBuf[bufCtr] = '/0';
-if(strlen(arrayBuf)>1)
-  {
-   client.publish(theOutTopic, arrayBuf);
-  }
-
-}
 
 void loop() {
-
+ delay(10); ///needed??
+ 
   if (!client.connected()) {
     reconnect();
   }
 
+ client.loop(); //mqtt
 
-wireComm();
+/*
+if( readyToRelayToUno){
+  Serial.println(mqttMsgIn); //send it to the UNO   ...buffer filled in mqtt callback
+  mqttMsgIn[0]='\0'; //just make sure it is clear
+  readyToRelayToUno = false; //ready for next one 
+}
+*/
 
 
-//get strings from arduino uno or tivac
-   String  gotStr= "";
-    bool gotOne = false;
-  
-  if (Serial.available() > 0) {
-    gotStr= Serial.readString();
-    gotStr.trim(); //remove linefeed
-    gotOne = true;
-  }
-  if (gotOne) {
-     
-      String theTopicStr = "ok/" + String(thisIP);
-     
-      char theMsg[12];
-      theTopicStr.toCharArray(theOutTopic,12);
-      gotStr.toCharArray(theMsg,12);
-      client.publish(theOutTopic, theMsg);
-  }
+// send what came from UNO over mqtt AS STRING 
+    recvWithStartEndMarkers(); 
+    if (newData)  {   processCommand();  }    
 
-  
-  
-  client.loop();
 
+  /*
   unsigned long now = millis();
   if (now - lastMsg > 2000) {
     lastMsg = now;
     ++value;
-    snprintf (msg, MSG_BUFFER_SIZE, "heartbeat #%ld", value);
-    Serial.print("Publish message: ");
+    snprintf (msg, MSG_BUFFER_SIZE, "%sheartbeat #%ld%s", startMarker,value,endMarker);
     Serial.println(msg);
     client.publish(theOutTopic, msg);
-  }
+   }
+*/
+  
 }
+
+
+
+
+
+
+/*
+****************************************
+* Function processCommand
+* parses data commands contained in receivedChars[]
+* receivedChars[] has not been checked for errors
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       receivedChars[]
+*       newData
+*
+*/
+
+
+void processCommand()
+{
+      //client.publish(theOutTopic, "testing ... cmd process");
+ //receivedChars.trim(); //get rid of new line etc
+ String s = String(receivedChars);
+// s.remove(s.length()-1,1); //pesky newline removal ... got to be a better way CHANGE THIS to a better filter
+ if (s.length() < 2) {
+    client.publish(theOutTopic, "too short");
+}else{
+     s = "<" + s + ">";
+     char Buf[50];
+     s.toCharArray(Buf, s.length()+1); 
+     client.publish(theOutTopic, Buf);
+}
+ 
+ // char rcstr[21];
+ // strcpy(rcstr,receivedChars);
+  //str[0] = 0; 
+ // strcat (str,receivedChars);
+ // str[howLong] = '\0';
+    //  String outString = "echo: " + receivedChars +"";
+      
+//      client.publish(theOutTopic, rcstr);
+     //pass it overmqtt
+    // snprintf (msg, MSG_BUFFER_SIZE, "%sMSG:%s%s", startMarker,receivedChars,endMarker);
+  //   client.publish(theOutTopic, msg);
+     
+     /*example of processing command
+  
+     if (strcmp ("sendTemp",receivedChars) == 0) 
+     { 
+         float temp = getTemp();
+         altSerial.print("<");  altSerial.print( temp ); altSerial.print(">");
+         if (DEBUG) { Serial.print("Temp is ");   Serial.print(temp);  Serial.println("");   }
+     }
+     */
+     
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+       
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+/*
+****************************************
+* Function recvWithStartEndMarkers
+* reads serial data and returns the content between a start marker and an end marker.
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       newData
+*       receivedChars
+*
+*/
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+     char startMarker = '<';
+     char endMarker = '>';
+     char rc;
+ 
+     if (Serial.available() > 0) 
+     {
+          rc = Serial.read();
+          //Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+              //skip over newlines?
+              if(iscntrl(rc)== 1) rc = Serial.read(); //eat the new line or return or tab
+               if ((rc != endMarker) && (rc != '\n'))
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               { 
+                   if (iscntrl(receivedChars[ndx - 1])){
+                    receivedChars[ndx-1] = '\0'; //overwrite the pesky new line
+                   }else{
+                    receivedChars[ndx] = '\0'; // terminate the string
+                   } 
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
+//THE ESP01 8266 generic module side
