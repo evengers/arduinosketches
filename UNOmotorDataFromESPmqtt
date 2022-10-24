@@ -1,0 +1,307 @@
+  
+
+
+// and the UNO side
+
+#define BAUD (38400)
+
+#include <AltSoftSerial.h>
+
+//slave for arduino tpo process data
+//excellent example here
+//http://www.martyncurrey.com/arduino-to-arduino-by-bluetooth/
+
+// AltSoftSerial always uses these pins:
+//
+// Board          Transmit  Receive   PWM Unusable
+// -----          --------  -------   ------------
+// Arduino Uno        9         8         10
+
+
+AltSoftSerial altSerial;
+
+
+
+
+// Shows how to run  Steppers at once with varying speeds
+//
+// Requires the Adafruit_Motorshield v2 library
+//   https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library
+// And AccelStepper with AFMotor support
+//   https://github.com/adafruit/AccelStepper
+
+//  for Adafruit Motorshield v2 only!
+// Will not work with v1 shields
+
+#include <AccelStepper.h>
+#include <Adafruit_MotorShield.h>
+
+Adafruit_MotorShield AFMSbot(0x61); // Rightmost jumper closed
+Adafruit_MotorShield AFMStop(0x60); // Default address, no jumpers
+
+// Connect two steppers with 200 steps per revolution (1.8 degree)
+// to the top shield
+Adafruit_StepperMotor *myStepper1 = AFMStop.getStepper(200, 1);
+Adafruit_StepperMotor *myStepper2 = AFMStop.getStepper(200, 2);
+
+
+
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgOut[MSG_BUFFER_SIZE];
+
+
+// Set DEBUG to true to output debug information to the serial monitor
+boolean DEBUG = true;
+ 
+
+// Variables used for incoming data
+const byte maxDataLength = MSG_BUFFER_SIZE;
+char receivedChars[MSG_BUFFER_SIZE + 1] ; //buffer for data in from ESP
+char messageCopy[MSG_BUFFER_SIZE + 1] ; //use copy to parse for motor drive
+boolean newData = false;
+
+boolean newMotorCmd = false;
+
+ char startMarker = '<';
+ char endMarker = '>';
+
+//const byte TEMP_PIN = A0;
+
+void setup()  
+{
+    if (DEBUG)
+    {
+        // open serial communication for debugging
+        Serial.begin(BAUD);
+        while (!Serial) ; // wait for Arduino Serial Monitor to open
+        Serial.println(__FILE__);
+        Serial.println(" ");
+    }
+
+    //  open a software serial connection 
+    altSerial.begin(BAUD); 
+    if (DEBUG)  {   Serial.println(F("AltSoftSerial started at 19200"));     }
+    newData = false;
+
+
+      
+ // AFMSbot.begin(); // Start the bottom shield
+  AFMStop.begin(); // Start the top MOTOR shield 
+ 
+} // void setup()
+ 
+ 
+
+ int actr = 0;
+ 
+void loop()  
+{
+  
+  
+    recvWithStartEndMarkers(); 
+    if (newData)  {   
+      strcpy(messageCopy,  receivedChars); //use this copy for parsing
+      processCommand();  }  
+
+     if (newMotorCmd)  { 
+       stepperLoop();
+     }
+  
+}
+    
+
+
+
+
+
+/*
+****************************************
+* Function processCommand
+* parses data commands contained in receivedChars[]
+* receivedChars[] has not been checked for errors
+
+*
+*/
+
+
+
+void processCommand()
+{
+     
+   //add atarter and end char 
+    snprintf (mqttMsgOut, MSG_BUFFER_SIZE, "<ACK:%s>", receivedChars);
+    altSerial.print(mqttMsgOut); // send back an acknowledgement
+    Serial.print("sent the following to ESP via altSerial");
+    Serial.print(mqttMsgOut);
+
+    
+     //test motor connect
+     newMotorCmd = true;
+
+     if(newMotorCmd){
+      setupAndRunStepper();
+     }
+ 
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+       
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+/*
+****************************************
+* Function recvWithStartEndMarkers
+* reads serial data and returns the content between a start marker and an end marker.
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       newData
+*       receivedChars
+*
+*/
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+     char startMarker = '<';
+     char endMarker = '>';
+     char rc;
+ 
+     if (altSerial.available() > 0) 
+     {
+          rc = altSerial.read();
+          if(iscntrl(rc)== 1) rc = Serial.read(); //eat the new line or return or tab
+        //  Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+               if (rc != endMarker) 
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               {
+                     receivedChars[ndx] = '\0'; // terminate the string
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
+
+
+
+
+// you can change these to DOUBLE or INTERLEAVE or MICROSTEP!
+// wrappers for the first motor!
+void forwardstep1() {
+  myStepper1->onestep(FORWARD, SINGLE);
+}
+void backwardstep1() {
+  myStepper1->onestep(BACKWARD, SINGLE);
+}
+// wrappers for the second motor!
+void forwardstep2() {
+  myStepper2->onestep(FORWARD, DOUBLE);
+}
+void backwardstep2() {
+  myStepper2->onestep(BACKWARD, DOUBLE);
+}
+// wrappers for the third motor!
+void forwardstep3() {
+//  myStepper3->onestep(FORWARD, INTERLEAVE);
+}
+void backwardstep3() {
+//  myStepper3->onestep(BACKWARD, INTERLEAVE);
+}
+
+// Now we'll wrap the 3 steppers in an AccelStepper object
+AccelStepper stepper1(forwardstep1, backwardstep1);
+AccelStepper stepper2(forwardstep2, backwardstep2);
+//AccelStepper stepper3(forwardstep3, backwardstep3);
+
+void setupAndRunStepper()
+{
+
+//variables here to interface with commands from ESp
+
+int whichmotor = 1;
+int whichdirection = 1;
+int toPosition= 0;
+char cspeed[7]= {0}; // temp because arduino sscanf does not handle floats
+char cmaxspeed[7]= {0}; // temp because arduino sscanf does not handle floats
+char caccelerate[7]= {0}; // temp because arduino sscanf does not handle floats
+sscanf(messageCopy, "%d,%d,%d,%c,%c,%c",whichmotor,whichdirection,toPosition,&cspeed,&cmaxspeed,&caccelerate);
+float thespeed = atof(cspeed);
+float maxspeed= atof(cmaxspeed);
+float accelerate = atof(caccelerate);
+
+
+
+Serial.println("what we are working with");
+Serial.print("motor?"); Serial.println(whichmotor);
+Serial.print("direction?");Serial.println(whichdirection);
+Serial.print("to position?");Serial.println(toPosition);
+Serial.print("the speed?");Serial.println(thespeed);
+Serial.print("the max speeed?");Serial.println(maxspeed);
+Serial.print("accelerate?");Serial.println(accelerate);
+
+//test data
+maxspeed=300.0;
+accelerate=100;
+toPosition=10;
+
+
+
+  stepper1.setMaxSpeed(maxspeed);
+  stepper1.setAcceleration(accelerate);
+  stepper1.setSpeed(thespeed); //added to working
+  stepper1.moveTo(toPosition);
+
+  stepper2.setMaxSpeed(maxspeed);
+  stepper2.setAcceleration(accelerate);
+  stepper2.setSpeed(thespeed);
+  stepper2.moveTo(toPosition);
+
+
+}
+
+
+
+void stepperLoop()
+{
+ 
+    // Change direction at the limits
+    if (stepper1.distanceToGo() == 0)
+  stepper1.moveTo(-stepper1.currentPosition());
+
+    if (stepper2.distanceToGo() == 0)
+  stepper2.moveTo(-stepper2.currentPosition());
+
+  //  if (stepper3.distanceToGo() == 0)
+//  stepper3.moveTo(-stepper3.currentPosition());
+
+    stepper1.run();
+    stepper2.run();
+   // stepper3.run();
+
+   //newMotorCmd = false; //ready for next command
+   
+}
