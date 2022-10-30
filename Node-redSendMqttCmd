@@ -1,0 +1,411 @@
+[
+    {
+        "id": "c9515d3e2cdfa843",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "95fc972ddaebc95d",
+        "type": "mqtt out",
+        "z": "c9515d3e2cdfa843",
+        "name": "",
+        "topic": "cmd/121",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "d15c2b7b181e2c7f",
+        "x": 320,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "894c8a406a0a727a",
+        "type": "mqtt in",
+        "z": "c9515d3e2cdfa843",
+        "name": "",
+        "topic": "+/#",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "d15c2b7b181e2c7f",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 330,
+        "y": 220,
+        "wires": [
+            [
+                "8e8601af2be2f888"
+            ]
+        ]
+    },
+    {
+        "id": "9de38934ad73c14f",
+        "type": "ui_button",
+        "z": "c9515d3e2cdfa843",
+        "name": "",
+        "group": "422ab0632bfba699",
+        "order": 7,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Send motors cmd",
+        "tooltip": "Will send command over MQTT",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "mqttcmd",
+        "payloadType": "flow",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 110,
+        "y": 140,
+        "wires": [
+            [
+                "95fc972ddaebc95d"
+            ]
+        ]
+    },
+    {
+        "id": "1bb313bb8fb4ab1d",
+        "type": "ui_switch",
+        "z": "c9515d3e2cdfa843",
+        "name": "reverse1",
+        "label": "Reverse 1",
+        "tooltip": "Reverse motor1",
+        "group": "422ab0632bfba699",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "decouple": "false",
+        "topic": "reverse1",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 100,
+        "y": 380,
+        "wires": [
+            [
+                "0b6b438d485cacd4"
+            ]
+        ]
+    },
+    {
+        "id": "65e2b730f126fd19",
+        "type": "ui_switch",
+        "z": "c9515d3e2cdfa843",
+        "name": "",
+        "label": "Reverse 2",
+        "tooltip": "Reverse motor 2",
+        "group": "422ab0632bfba699",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "topic",
+        "topicType": "msg",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 100,
+        "y": 500,
+        "wires": [
+            [
+                "f70ab92330d09fd3"
+            ]
+        ]
+    },
+    {
+        "id": "456c580afab3ddb2",
+        "type": "ui_slider",
+        "z": "c9515d3e2cdfa843",
+        "name": "slide1",
+        "label": "Steps 1",
+        "tooltip": "Steps for motor 1",
+        "group": "422ab0632bfba699",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "outs": "all",
+        "topic": "SLIDER1",
+        "topicType": "str",
+        "min": 0,
+        "max": "1000",
+        "step": 1,
+        "className": "",
+        "x": 90,
+        "y": 320,
+        "wires": [
+            [
+                "f862008429b2c38b"
+            ]
+        ]
+    },
+    {
+        "id": "5a2b68dafab3199e",
+        "type": "ui_slider",
+        "z": "c9515d3e2cdfa843",
+        "name": "slide2",
+        "label": "Steps 2",
+        "tooltip": "Steps for motor 2",
+        "group": "422ab0632bfba699",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "outs": "all",
+        "topic": "slide2",
+        "topicType": "msg",
+        "min": 0,
+        "max": "1000",
+        "step": "1",
+        "className": "",
+        "x": 90,
+        "y": 440,
+        "wires": [
+            [
+                "d9aff4aca5b156b3"
+            ]
+        ]
+    },
+    {
+        "id": "70102c5dd5f34d52",
+        "type": "ui_text",
+        "z": "c9515d3e2cdfa843",
+        "group": "422ab0632bfba699",
+        "order": 6,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "MQTT Command",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 690,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "f862008429b2c38b",
+        "type": "function",
+        "z": "c9515d3e2cdfa843",
+        "name": "SetSlider1global",
+        "func": "global.set('slider1',msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 260,
+        "y": 320,
+        "wires": [
+            [
+                "ebe7ddfe1bf2b6fd"
+            ]
+        ]
+    },
+    {
+        "id": "d9aff4aca5b156b3",
+        "type": "function",
+        "z": "c9515d3e2cdfa843",
+        "name": "SetSlider2global",
+        "func": "global.set('slider2',msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 280,
+        "y": 460,
+        "wires": [
+            [
+                "ebe7ddfe1bf2b6fd"
+            ]
+        ]
+    },
+    {
+        "id": "ebe7ddfe1bf2b6fd",
+        "type": "function",
+        "z": "c9515d3e2cdfa843",
+        "name": "Mergeglobals",
+        "func": "var stepslider1 = global.get('slider1');\nvar stepslider2 = global.get('slider2');\nif (global.get('reverser1')){stepslider1 = -1 * stepslider1}\nif (global.get('reverser2')){stepslider2 = -1 * stepslider2}\nvar merged = '<1,'+stepslider1 +',' + stepslider2 +'>';\nflow.set('mqttcmd',merged); //will be sent by button click\nvar mergedmsg = {payload: merged};\nreturn mergedmsg;",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 400,
+        "wires": [
+            [
+                "70102c5dd5f34d52"
+            ],
+            [
+                "451feeb9eb5085c1"
+            ]
+        ]
+    },
+    {
+        "id": "f70ab92330d09fd3",
+        "type": "function",
+        "z": "c9515d3e2cdfa843",
+        "name": "SetReverser2global",
+        "func": "global.set('reverser2',msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 520,
+        "wires": [
+            [
+                "ebe7ddfe1bf2b6fd"
+            ]
+        ]
+    },
+    {
+        "id": "0b6b438d485cacd4",
+        "type": "function",
+        "z": "c9515d3e2cdfa843",
+        "name": "SetReverser1global",
+        "func": "global.set('reverser1',msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 380,
+        "wires": [
+            [
+                "ebe7ddfe1bf2b6fd"
+            ]
+        ]
+    },
+    {
+        "id": "451feeb9eb5085c1",
+        "type": "change",
+        "z": "c9515d3e2cdfa843",
+        "name": "Ready cmd",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "mqttcmd",
+                "tot": "flow",
+                "dc": true
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 750,
+        "y": 400,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "8e8601af2be2f888",
+        "type": "ui_toast",
+        "z": "c9515d3e2cdfa843",
+        "position": "dialog",
+        "displayTime": "3",
+        "highlight": "",
+        "sendall": true,
+        "outputs": 1,
+        "ok": "OK",
+        "cancel": "",
+        "raw": false,
+        "className": "",
+        "topic": "",
+        "name": "",
+        "x": 550,
+        "y": 180,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d15c2b7b181e2c7f",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "192.168.2.222",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "422ab0632bfba699",
+        "type": "ui_group",
+        "name": "Step control",
+        "tab": "2faed352ca97c2fc",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "2faed352ca97c2fc",
+        "type": "ui_tab",
+        "name": "Motors",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    }
+]
