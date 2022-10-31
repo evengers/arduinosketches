@@ -1,0 +1,360 @@
+
+
+// and the UNO side
+
+#define BAUD (38400)
+
+#include <AltSoftSerial.h>
+
+//slave for arduino tpo process data
+//excellent example here
+//http://www.martyncurrey.com/arduino-to-arduino-by-bluetooth/
+
+// AltSoftSerial always uses these pins:
+//
+// Board          Transmit  Receive   PWM Unusable
+// -----          --------  -------   ------------
+// Arduino Uno        9         8         10
+
+
+AltSoftSerial altSerial;
+
+
+
+
+// Shows how to run  Steppers at once with varying speeds
+//
+// Requires the Adafruit_Motorshield v2 library
+//   https://github.com/adafruit/Adafruit_Motor_Shield_V2_Library
+// And AccelStepper with AFMotor support
+//   https://github.com/adafruit/AccelStepper
+
+//  for Adafruit Motorshield v2 only!
+// Will not work with v1 shields
+
+#include <AccelStepper.h>
+#include <Adafruit_MotorShield.h>
+
+//Adafruit_MotorShield AFMSbot(0x61); // Rightmost jumper closed
+//Adafruit_MotorShield AFMStop(0x60); // Default address, no jumpers
+
+// Create the motor shield object with the default I2C address
+Adafruit_MotorShield AFMS = Adafruit_MotorShield();
+
+// Connect two steppers with 200 steps per revolution (1.8 degree)
+// to the top shield
+//Adafruit_StepperMotor *myStepper1 = AFMStop.getStepper(200, 2);
+//Adafruit_StepperMotor *myStepper2 = AFMStop.getStepper(200, 1); //2?
+
+// Connect a stepper motor with 200 steps per revolution (1.8 degree)  ...... NEMA 17 is 200 per revolution
+// to motor port #2 (M3 and M4)
+Adafruit_StepperMotor *motor1 = AFMS.getStepper(200, 2);
+
+// to motor port #1 (M1 and M2)
+Adafruit_StepperMotor *motor2 = AFMS.getStepper(200, 1);
+
+// you can change these to DOUBLE or INTERLEAVE or MICROSTEP!
+//double is both coils activated ... has more torque
+// interleave alternates between single and double for double resolution but half speed of double
+//choose microstep for smoth, slow , quiet and limited torque
+// wrappers for the first motor!
+
+//interleave wrors well
+void forwardstep1() {
+  motor1->onestep(FORWARD, MICROSTEP);
+}
+void backwardstep1() {
+  motor1->onestep(BACKWARD,MICROSTEP);
+}
+// wrappers for the second motor!
+void forwardstep2() {
+  motor2->onestep(FORWARD, MICROSTEP);
+}
+void backwardstep2() {
+  motor2->onestep(BACKWARD,MICROSTEP);
+}
+
+
+// Now we'll wrap the 3 steppers in an AccelStepper object
+AccelStepper stepper1(forwardstep1, backwardstep1);
+AccelStepper stepper2(forwardstep2, backwardstep2);
+
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgOut[MSG_BUFFER_SIZE];
+
+int stepsFromHome1=0;
+int stepsFromHome2=0;
+
+// Set DEBUG to true to output debug information to the serial monitor
+boolean DEBUG = true;
+ 
+
+// Variables used for incoming data
+const byte maxDataLength = MSG_BUFFER_SIZE;
+char receivedChars[MSG_BUFFER_SIZE + 1] ; //buffer for data in from ESP
+char messageCopy[MSG_BUFFER_SIZE + 1] ; //use copy to parse for motor drive
+boolean newData = false;
+
+boolean newMotorCmd = false;
+
+ char startMarker = '<';
+ char endMarker = '>';
+
+//const byte TEMP_PIN = A0;
+
+void setup()  
+{
+    if (DEBUG)
+    {
+        // open serial communication for debugging
+        Serial.begin(BAUD);
+        while (!Serial) ; // wait for Arduino Serial Monitor to open
+        Serial.println(__FILE__);
+        Serial.println(" ");
+    }
+
+    //  open a software serial connection 
+    altSerial.begin(BAUD); 
+    if (DEBUG)  {   Serial.println(F("AltSoftSerial started at 19200"));     }
+    newData = false;
+
+
+      AFMS.begin(); //start shield
+
+  stepper1.setMaxSpeed(4000); //set before setting speed
+  stepper2.setMaxSpeed(4000);
+  
+   stepper1.setAcceleration(500);  //slow functiuon set only once??
+   stepper2.setAcceleration(500);
+   
+   stepper1.setSpeed(3500); //added to working
+   stepper2.setSpeed(3500);
+   
+} // void setup()
+ 
+ 
+
+ int actr = 0;
+ 
+void loop()  
+{
+  
+  
+    recvWithStartEndMarkers(); 
+    if (newData)  {   
+      //strcpy(messageCopy,  receivedChars); //use this copy for parsing
+      processCommand(); 
+      
+      }  
+
+
+   
+ if(newMotorCmd){
+   while((stepper1.distanceToGo()!= 0) || (stepper2.distanceToGo()!= 0)){
+        stepper1.run();
+        stepper2.run();
+        //Serial.print("stepper1 pos: "); Serial.println(stepper1.currentPosition());
+       // Serial.print("stepper2 pos: "); Serial.println(stepper2.currentPosition());
+      }
+
+   motor1->release();  //thge release will hopefully remove the overheating
+   motor2->release();
+   newMotorCmd = false;
+
+   }//end motor stuff
+
+
+
+    
+}
+    
+
+
+
+void processCommand()
+{
+  int nextStep1pos = 0;
+  int nextStep2pos = 0;
+
+  int param1 = 0;
+  int param2 = 0;
+  int command=0;
+
+  int i;
+  int x=0;
+
+  Serial.print("the received ...BEFORE scrubbed  "); 
+            Serial.println(receivedChars);
+
+ 
+     for(i=0; receivedChars[i]!='\0'; i++){
+       if((receivedChars[i] =='<') ||  (receivedChars[i] =='>')){
+        //skip it
+       }else{
+        messageCopy[x]=receivedChars[i];
+        x++;
+       }
+     }
+   
+  
+Serial.print("the received ... scrubbed  "); 
+            Serial.println(messageCopy);
+ /*           
+     if(receivedChars[0] =="<"){
+      sscanf(receivedChars, "<%s",messageCopy); //get rid of leading <
+     }else{
+      sscanf(receivedChars, "%s",messageCopy); //get rid of leading <
+     }
+     
+
+Serial.print("the received ...  "); 
+            Serial.println(receivedChars);
+Serial.print("the pieces ...  "); 
+            Serial.println(messageCopy);
+            */
+     //probably just drive motors so only need 3 commands but could use firs digit for more
+     // commands can be with or without brackets "1,500"  or "<1,500>"  
+     // if one command does both motors it is "0,500,600"  
+     // if motor 1 1,500      if motor 2  2,500     ... 500 is example steps
+
+    /* 
+     *  sscanf(messageCopy, "%d,%d,%d",&command,&nextStep1pos,&nextStep2pos); //get both
+
+     Serial.print("the pieces ...  "); 
+            Serial.print(command);
+            Serial.print(" ...  "); 
+            Serial.print(nextStep1pos);
+            Serial.print(" ...  "); 
+            Serial.println(nextStep2pos);
+        */    
+
+      sscanf(messageCopy, "%d,%d,%d",&command,&param1,&param2); //get both
+
+     switch (command){
+       case 0:
+       //do NOTHING ... future command
+            Serial.println(command); 
+            Serial.println(param1);  
+            Serial.println(param2);  
+         //  sscanf(messageCopy, "%d,%d",&nextStep1pos,&nextStep2pos); //get both
+              
+              stepsFromHome1=stepsFromHome1+param1;   //in case we want to go back home ... use array instead for history??
+              stepsFromHome2=stepsFromHome2+param2;   //in case we want to go back home ... use array instead for history??
+              stepper1.moveTo(stepsFromHome1);
+              stepper2.moveTo(stepsFromHome2);
+              newMotorCmd=true; //just to test  
+          break;
+       case 1:
+            // so far all commands coming via mqtt will be prefixed by 1 and carry both stepper info 
+             Serial.print (command); 
+             Serial.print(" .M1. ");
+              Serial.println(param1);  
+              Serial.print(" .M2. ");
+              Serial.println(param2);  
+             // sscanf(messageCopy, ",%d,",&nextStep1pos); //get stepper 1
+              
+              //nextStep2pos=0;
+              stepsFromHome1=stepsFromHome1+param1;   //in case we want to go back home ... use array instead for history??         
+              stepper1.moveTo(param1);   //alternative would be to TO RESET POSITION TO 0 AFTER MOVE but that set speed to  0 (see accel library)? 
+              
+              stepsFromHome2=stepsFromHome2+param2;   //in case we want to go back home ... use array instead for history??
+              stepper2.moveTo(param2);   //alternative would be to TO RESET POSITION TO 0 AFTER MOVE but that set speed to  0 (see accel library)? 
+
+              newMotorCmd=true; //just to test  
+          break;
+       case 2:   
+
+             Serial.println(command); 
+              Serial.println(param1);     
+              //sscanf(messageCopy, ",%d,",&nextStep2pos); //get stepper 2
+              //nextStep1pos=0;;
+              stepsFromHome2=stepsFromHome2+param1;   //in case we want to go back home ... use array instead for history??
+              stepper2.moveTo(stepsFromHome2);
+              newMotorCmd=true; 
+          break;   
+        default:
+            Serial.print("I do not understand command"); // 
+            altSerial.print("I do not understand command"); //sent through serial to esp and on via mqtt
+            newMotorCmd=false; 
+           break;  
+     }
+     
+     Serial.print(" got this copy");Serial.println(messageCopy);
+   //add atarter and end char 
+    snprintf (mqttMsgOut, MSG_BUFFER_SIZE, "<ACK:%s>", receivedChars);
+    altSerial.print(mqttMsgOut); // send back an acknowledgement
+    Serial.print("sent the following to ESP via altSerial");
+    Serial.print(mqttMsgOut);
+
+   
+
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+       
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+/*
+****************************************
+* Function recvWithStartEndMarkers
+* reads serial data and returns the content between a start marker and an end marker.
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       newData
+*       receivedChars
+*
+*/
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+     char startMarker = '<';
+     char endMarker = '>';
+     char rc;
+ 
+     if (altSerial.available() > 0) 
+     {
+          rc = altSerial.read();
+          if(iscntrl(rc)== 1) rc = Serial.read(); //eat the new line or return or tab
+        //  Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+               if (rc != endMarker) 
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               {
+                     receivedChars[ndx] = '\0'; // terminate the string
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
+
+
+
+
+
+
+
