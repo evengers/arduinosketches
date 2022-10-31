@@ -1,0 +1,166 @@
+
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgOut[MSG_BUFFER_SIZE];
+// Variables used for incoming data
+const byte maxDataLength = MSG_BUFFER_SIZE;
+char receivedChars[MSG_BUFFER_SIZE + 1] ; //buffer for data in from ESP
+char messageCopy[MSG_BUFFER_SIZE + 1] ; //use copy to parse for motor drive
+boolean newData = false;
+
+boolean newCmd = false;
+
+
+
+void setup() {
+  Serial.begin(38400);
+  Serial7.begin(38400);  //on the booster pack serial port pin 3 and 4
+  
+   
+}
+
+void loop() {
+ 
+  /*if (Serial.available()) {      // If anything comes in Serial (USB),
+    Serial7.write(Serial.read());   // read it and send it out Serial1 (pins 0 & 1)
+  }
+
+
+ 
+         if (Serial7.available()>2) {     // If anything comes in Serial1 (pins 0 & 1)
+   // Serial.println("something on serial 7");   // read it and send it out Serial (USB)
+     Serial.write(Serial7.read()); 
+   }
+   */
+       recvWithStartEndMarkers(); 
+    if (newData)  {   
+      //strcpy(messageCopy,  receivedChars); //use this copy for parsing
+      processCommand(); 
+      
+      }  
+
+   
+}
+
+
+
+
+void processCommand()
+{
+  
+
+  int param1 = 0;
+  int param2 = 0;
+  int command=0;
+
+  int i;
+  int x=0;
+
+  Serial.print("the received ...BEFORE scrubbed  "); 
+            Serial.println(receivedChars);
+
+ 
+     for(i=0; receivedChars[i]!='\0'; i++){
+       if((receivedChars[i] =='<') ||  (receivedChars[i] =='>')){
+        //skip it
+       }else{
+        messageCopy[x]=receivedChars[i];
+        x++;
+       }
+     }
+   
+  
+             Serial.print("the received ... scrubbed  "); 
+            Serial.println(messageCopy);
+
+     //probably just drive motors so only need 3 commands but could use firs digit for more
+     // commands can be with or without brackets "1,500"  or "<1,500>"  
+     // if one command does both motors it is "0,500,600"  
+     // if motor 1 1,500      if motor 2  2,500     ... 500 is example steps
+
+ 
+
+      sscanf(messageCopy, "%d,%d,%d",&command,&param1,&param2); //get both
+
+     switch (command){
+       case 0:
+       //do NOTHING ... future command
+              newCmd=true; //just to test  
+          break;
+       case 1:
+            // so far all commands coming via mqtt will be prefixed by 1 and carry both stepper info 
+             Serial.print (command); 
+             Serial.print(" .M1. ");
+              Serial.println(param1);  
+              Serial.print(" .M2. ");
+              Serial.println(param2);  
+             // sscanf(messageCopy, ",%d,",&nextStep1pos); //get stepper 1
+              
+            
+              newCmd=true; //just to test  
+          break;
+       case 2:   
+
+             Serial.println("do some command"); 
+             
+          break;   
+        default:
+            Serial.print("I do not understand command"); // 
+            Serial7.print("I do not understand command"); //sent through serial to esp and on via mqtt
+            newCmd=false; 
+           break;  
+     }
+     
+     Serial.print(" got this copy");Serial.println(messageCopy);
+   //add atarter and end char 
+    snprintf (mqttMsgOut, MSG_BUFFER_SIZE, "<ACK:%s>", receivedChars);
+    Serial7.print(mqttMsgOut); // send back an acknowledgement
+    Serial.print("sent the following to ESP via altSerial");
+    Serial.print(mqttMsgOut);
+
+   
+
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+     char startMarker = '<';
+     char endMarker = '>';
+     char rc;
+ 
+     if (Serial7.available() > 0) 
+     {
+          rc = Serial7.read();
+          if(iscntrl(rc)== 1) rc = Serial.read(); //eat the new line or return or tab
+        //  Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+               if (rc != endMarker) 
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               {
+                     receivedChars[ndx] = '\0'; // terminate the string
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
