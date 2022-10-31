@@ -1,0 +1,348 @@
+//for esp8266 generic module
+
+/*
+
+1) Basic ESP8266 MQTT example  with WIFI   conveys uno's  messages to/from network via MQTT
+2) Messages passed between UNo (or TIVAC) and EP-01 module using UART/Serial (could be I2C instead)
+                     - MQTT will need strings need conversion the messages from UNO that are transferred as bytes (in structs) with SerialTransfer
+
+ 3) MQTT will reconnect to the server if the connection is lost using a blocking
+ reconnect function. See the 'mqtt_reconnect_nonblocking' example for how to
+ achieve the same result without blocking the main loop.
+ To install the ESP8266 board, (using Arduino 1.6.4+):
+  - Add the following 3rd party board manager under "File -> Preferences -> Additional Boards Manager URLs":
+       http://arduino.esp8266.com/stable/package_esp8266com_index.json
+  - Open the "Tools -> Board -> Board Manager" and click install for the ESP8266"
+  - Select your ESP8266 in "Tools -> Board"
+*/
+
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+
+
+
+
+bool flagUNOtx  = false;  //used to signal receipt of mqtt message that needs to be conveyed to UNO
+char toUNObuff[30];
+
+
+#define MSG_BUFFER_SIZE  (50)
+char mqttMsgIn[MSG_BUFFER_SIZE]={'/0'};
+bool readyToRelayToUno = false;
+char outStr[7]={'/0'};  //buffer for outstr from wire to mqtt
+
+
+
+// Variables used for incoming data
+const byte maxDataLength =MSG_BUFFER_SIZE ;
+char receivedChars[MSG_BUFFER_SIZE+1] ;
+boolean newData = false;
+ char startMarker = '<';
+ char endMarker = '>';
+String out ="";
+
+
+
+
+
+// Update these with values suitable for your network.
+
+const char* ssid = "ZuhauseGizmos";
+const char* password = "Canada99!Gizmos";
+const char* mqtt_server = "192.168.2.222";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+unsigned long lastMsg = 0;
+#define MSG_BUFFER_SIZE  (50)
+char msg[MSG_BUFFER_SIZE];
+int value = 0;
+
+int thisIP; //use this for topics to identify sender set at wifi connect
+char theOutTopic[12];
+char theInTopic[12]; //both will be concattonated with the last 3 of the ipaddress to uniquely identify traffic
+
+void setup_wifi() {
+
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  randomSeed(micros());
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  thisIP = WiFi.localIP()[3]; // just need the last 3 digits ofthe ip to uniquely identify this node
+  
+  Serial.println(thisIP);
+
+  
+}
+
+
+void callback(char* topic, byte* payload, unsigned int length) {
+
+char message[length + 2]; //1 for the string terminator and 2 for start and stop chars
+
+  // convert the payload from a byte array to a char array
+  memcpy(message, payload, length);
+
+  // add NULL terminator to message, making it a correct c-string
+  message[length - 1] = '>'; //replkace the newline .. will this truncat some messages
+  message[length] = '\0'; // maybe alternative just cocat the start and end and seiarl.println message??
+
+  char str[length + 7];
+  str[0] = 0; 
+ // strcat (str,"<CMD:");
+  strcat (str,"<");  //what else would it be? forget about the CMD?
+  strcat (str, message);
+  str[length + 7] = '\0';
+ 
+   ///send it along to the UNO
+ // Serial.println(str);
+  Serial.print(str);  //without the lin feed
+ 
+    
+   //readyToRelayToUno = true;
+   
+
+    
+ /* next few lines just here for checking syntax ideas
+ if ((char)payload[0] == '1') 
+ for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  */
+  
+}
+
+   
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      String theOutTopicStr = "ok/" + String(thisIP);
+      Serial.println("will be publishing with this topic ..." + theOutTopicStr);
+      theOutTopicStr.toCharArray(theOutTopic,12);
+      client.publish(theOutTopic, "hello world");
+      
+      // ... and resubscribe
+      client.subscribe("cmd/"+thisIP);
+      String theInTopicStr = "cmd/" + String(thisIP);
+      Serial.println("subscribing to  ... " + theInTopicStr);
+      theInTopicStr.toCharArray(theInTopic,12);
+      client.subscribe(theInTopic);
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+
+void setup() {
+ // pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  Serial.begin(38400);
+  delay(500);
+  
+  setup_wifi();
+  delay(5000);
+  
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+  
+}
+
+
+
+
+
+void loop() {
+ delay(10); ///needed??
+ 
+  if (!client.connected()) {
+    reconnect();
+  }
+
+ client.loop(); //mqtt
+
+/*
+if( readyToRelayToUno){
+  Serial.println(mqttMsgIn); //send it to the UNO   ...buffer filled in mqtt callback
+  mqttMsgIn[0]='\0'; //just make sure it is clear
+  readyToRelayToUno = false; //ready for next one 
+}
+*/
+
+
+// send what came from UNO over mqtt AS STRING 
+    recvWithStartEndMarkers(); 
+    if (newData)  {   processCommand();  }    
+
+
+  /*
+  unsigned long now = millis();
+  if (now - lastMsg > 2000) {
+    lastMsg = now;
+    ++value;
+    snprintf (msg, MSG_BUFFER_SIZE, "%sheartbeat #%ld%s", startMarker,value,endMarker);
+    Serial.println(msg);
+    client.publish(theOutTopic, msg);
+   }
+*/
+  
+}
+
+
+
+
+
+
+/*
+****************************************
+* Function processCommand
+* parses data commands contained in receivedChars[]
+* receivedChars[] has not been checked for errors
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       receivedChars[]
+*       newData
+*
+*/
+
+
+void processCommand()
+{
+      //client.publish(theOutTopic, "testing ... cmd process");
+ //receivedChars.trim(); //get rid of new line etc
+ String s = String(receivedChars);
+// s.remove(s.length()-1,1); //pesky newline removal ... got to be a better way CHANGE THIS to a better filter
+ if (s.length() < 2) {
+    client.publish(theOutTopic, "too short");
+}else{
+     s = "<" + s + ">";
+     char Buf[50];
+     s.toCharArray(Buf, s.length()+1); 
+     client.publish(theOutTopic, Buf);
+}
+ 
+ // char rcstr[21];
+ // strcpy(rcstr,receivedChars);
+  //str[0] = 0; 
+ // strcat (str,receivedChars);
+ // str[howLong] = '\0';
+    //  String outString = "echo: " + receivedChars +"";
+      
+//      client.publish(theOutTopic, rcstr);
+     //pass it overmqtt
+    // snprintf (msg, MSG_BUFFER_SIZE, "%sMSG:%s%s", startMarker,receivedChars,endMarker);
+  //   client.publish(theOutTopic, msg);
+     
+     /*example of processing command
+  
+     if (strcmp ("sendTemp",receivedChars) == 0) 
+     { 
+         float temp = getTemp();
+         altSerial.print("<");  altSerial.print( temp ); altSerial.print(">");
+         if (DEBUG) { Serial.print("Temp is ");   Serial.print(temp);  Serial.println("");   }
+     }
+     */
+     
+     newData = false;
+     receivedChars[0]='\0'; 
+   
+}
+
+
+
+       
+
+// function recvWithStartEndMarkers by Robin2 of the Arduino forums
+// See  http://forum.arduino.cc/index.php?topic=288234.0
+/*
+****************************************
+* Function recvWithStartEndMarkers
+* reads serial data and returns the content between a start marker and an end marker.
+* 
+* passed:
+*  
+* global: 
+*       receivedChars[]
+*       newData
+*
+* Returns:
+*          
+* Sets:
+*       newData
+*       receivedChars
+*
+*/
+void recvWithStartEndMarkers()
+{
+     static boolean recvInProgress = false;
+     static byte ndx = 0;
+     char startMarker = '<';
+     char endMarker = '>';
+     char rc;
+ 
+     if (Serial.available() > 0) 
+     {
+          rc = Serial.read();
+          //Serial.print(rc);  //to debug
+          if (recvInProgress == true) 
+          {
+              //skip over newlines?
+              if(iscntrl(rc)== 1) rc = Serial.read(); //eat the new line or return or tab
+               if ((rc != endMarker) && (rc != '\n'))
+               {
+                    receivedChars[ndx] = rc;
+                    ndx++;
+                    if (ndx > maxDataLength) { ndx = maxDataLength; }
+               }
+               else 
+               { 
+                   if (iscntrl(receivedChars[ndx - 1])){
+                    receivedChars[ndx-1] = '\0'; //overwrite the pesky new line
+                   }else{
+                    receivedChars[ndx] = '\0'; // terminate the string
+                   } 
+                     recvInProgress = false;
+                     ndx = 0;
+                     newData = true;
+               }
+          }
+          else if (rc == startMarker) { recvInProgress = true; }
+     }
+
+}
+//THE ESP01 8266 generic module side
