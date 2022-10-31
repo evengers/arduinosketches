@@ -47,8 +47,8 @@ String out ="";
 
 // Update these with values suitable for your network.
 
-const char* ssid = "ZuhauseGizmos";
-const char* password = "Canada99!Gizmos";
+const char* ssid = "Zu...";
+const char* password = "Can...";
 const char* mqtt_server = "192.168.2.222";
 
 WiFiClient espClient;
